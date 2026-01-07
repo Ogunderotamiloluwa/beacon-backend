@@ -48,11 +48,46 @@ const upload = multer({
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost for development
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    
+    // Allow the Render production URL
+    if (origin.includes('beacon-backend-2udx.onrender.com')) {
+      return callback(null, true);
+    }
+    
+    // Allow any origin specified in environment variable
+    if (process.env.CORS_ORIGIN && origin === process.env.CORS_ORIGIN) {
+      return callback(null, true);
+    }
+    
+    // For development, allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Request logging middleware - log ALL incoming requests
+app.use((req, res, next) => {
+  console.log(`\n📍 ${req.method} ${req.path}`);
+  console.log(`🔗 Origin: ${req.get('origin') || 'no origin header'}`);
+  if (req.method === 'POST' && req.path.includes('/api/forms')) {
+    console.log(`📦 Content-Type: ${req.get('content-type')}`);
+  }
+  next();
+});
 
 // Serve static files from frontend build (production)
 app.use(express.static(path.join(__dirname, 'public', 'build')));
